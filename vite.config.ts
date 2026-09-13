@@ -10,7 +10,7 @@ import path from 'path';
 const REPO_NAME = 'scoala-duminicala';
 
 export default defineConfig({
-  base: `/${REPO_NAME}/`,
+  base: '/scoala-duminicala/',
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
