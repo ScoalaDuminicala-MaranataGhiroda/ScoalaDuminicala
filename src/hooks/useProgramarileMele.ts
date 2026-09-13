@@ -11,8 +11,9 @@ export interface ProgramareProprie {
   rol: 'principal' | 'ajutor';
 }
 
-// Aduna toate programarile in care invatatorul apare fie ca principal, fie ca ajutor,
-// indiferent de grupa, sortate cronologic (cele mai recente/apropiate primele).
+// Aduna programarile in care invatatorul apare fie ca principal, fie ca
+// ajutor, indiferent de grupa - DOAR cele de azi sau din viitor (cele din
+// trecut nu mai apar pe pagina principala, ca sa nu se umple cu istoric).
 export function useProgramarileMele(invatatorId: string) {
   const [programari, setProgramari] = useState<ProgramareProprie[]>([]);
   const [seIncarca, setSeIncarca] = useState(true);
@@ -20,11 +21,13 @@ export function useProgramarileMele(invatatorId: string) {
   useEffect(() => {
     async function incarca() {
       setSeIncarca(true);
+      const azi = new Date().toISOString().substring(0, 10); // YYYY-MM-DD, ora locala a dispozitivului
 
       const { data: caPrincipal } = await supabase
         .from('programari')
         .select('id, data_lectie, titlu, grupa_id, grupe(nume, culoare_hex)')
-        .eq('invatator_principal_id', invatatorId);
+        .eq('invatator_principal_id', invatatorId)
+        .gte('data_lectie', azi);
 
       const { data: caAjutorLinks } = await supabase
         .from('programari_ajutoare')
@@ -37,7 +40,8 @@ export function useProgramarileMele(invatatorId: string) {
         const { data } = await supabase
           .from('programari')
           .select('id, data_lectie, titlu, grupa_id, grupe(nume, culoare_hex)')
-          .in('id', idAjutor);
+          .in('id', idAjutor)
+          .gte('data_lectie', azi);
         caAjutor = data ?? [];
       }
 
