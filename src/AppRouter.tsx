@@ -59,8 +59,15 @@ function RuteProtejate() {
 }
 
 export default function AppRouter() {
+  // BrowserRouter trebuie sa stie ca aplicatia traieste sub un subfolder
+  // (ex: https://user.github.io/scoala-duminicala/), nu la radacina domeniului.
+  // import.meta.env.BASE_URL vine automat din "base" setat in vite.config.ts,
+  // deci nu trebuie scris manual si nu se poate dezincroniza de acolo.
+  // Fara basename, refresh-ul pe orice ruta (ex /invatator) functioneaza doar
+  // daca esti exact la radacina site-ului, si da erori/comportament gresit
+  // de navigare pe GitHub Pages unde site-ul e intr-un subfolder.
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={import.meta.env.BASE_URL}>
       <RuteProtejate />
     </BrowserRouter>
   );

@@ -1,7 +1,8 @@
-import { defineConfig } from 'vite';
+import { defineConfig, Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 import path from 'path';
+import fs from 'fs';
 
 // Determina automat numele repo-ului din variabila de mediu pe care GitHub
 // Actions o seteaza mereu (format "owner/repo"), ca sa nu mai fie nevoie sa
@@ -14,8 +15,33 @@ const REPO_NAME = repoFullName ? repoFullName.split('/')[1] : 'scoala-duminicala
 // seteaza manual BASE_PATH='/' mai jos si ignora REPO_NAME.
 const BASE_PATH = `/${REPO_NAME}/`;
 
+// GitHub Pages nu stie despre rutele React Router (e un server static simplu):
+// la refresh pe orice ruta diferita de "/", cauta fizic acel path, nu-l gaseste
+// si serveste automat fisierul "404.html" din radacina site-ului daca exista.
+// Copiind index.html peste 404.html dupa build, browserul primeste tot
+// aplicatia React, care apoi citeste URL-ul si afiseaza pagina corecta.
+// Fara acest plugin, orice refresh pe o ruta diferita de "/" da eroare 404.
+function spaFallback404(): Plugin {
+  return {
+    name: 'spa-fallback-404',
+    closeBundle() {
+      const distDir = path.resolve(__dirname, 'dist');
+      const indexPath = path.join(distDir, 'index.html');
+      const notFoundPath = path.join(distDir, '404.html');
+      if (fs.existsSync(indexPath)) {
+        fs.copyFileSync(indexPath, notFoundPath);
+      }
+    },
+  };
+}
+
 export default defineConfig({
   base: BASE_PATH,
+  // 'spa' e valoarea implicita in Vite, dar o facem explicita: la orice ruta
+  // necunoscuta (ex /invatator/grupa/xyz), atat "vite dev" cat si
+  // "vite preview" trebuie sa serveasca index.html, nu sa dea 404, ca
+  // React Router sa poata prelua ruta din browser dupa refresh.
+  appType: 'spa',
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
@@ -44,5 +70,6 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
       },
     }),
+    spaFallback404(),
   ],
 });
