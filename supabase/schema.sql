@@ -196,34 +196,57 @@ create index if not exists idx_lectii_copii_copil on lectii_copii(copil_id);
 create index if not exists idx_lectii_parcurse_grupa on lectii_parcurse(grupa_id);
 
 -- ----------------------------------------------------------------------------
--- 9. FUNCTIE: recalculeaza grupa unui copil in functie de clasa lui curenta
+-- 9. ARONDARE AUTOMATA GRUPA: functie helper + triggere pe copii si grupe_clase
 -- ----------------------------------------------------------------------------
-create or replace function recalculeaza_grupa_copil(p_copil_id uuid)
-returns void as $$
-declare
-  v_clasa text;
-  v_grupa uuid;
+-- Un singur loc de adevar pt logica "ce grupa corespunde clasei X" - toate
+-- triggerele de mai jos o folosesc, ca sa nu existe cod duplicat.
+create or replace function calculeaza_grupa_pt_clasa(p_clasa_cod text)
+returns uuid as $$
+  select gc.grupa_id
+  from grupe_clase gc
+  where gc.clasa_cod = p_clasa_cod
+  limit 1;
+$$ language sql stable;
+
+-- Trigger pe COPII: seteaza grupa_id INAINTE de scriere, la orice INSERT si
+-- la orice UPDATE (nu doar "of clasa_cod" - "of" e ambiguu la INSERT si nu
+-- se declanseaza fiabil pe toate motoarele PostgREST; recalcularea e
+-- ieftina, deci rulam mereu, indiferent ce coloane trimite clientul).
+create or replace function trg_copil_seteaza_grupa()
+returns trigger as $$
 begin
-  select clasa_cod into v_clasa from copii where id = p_copil_id;
-  select gc.grupa_id into v_grupa
-    from grupe_clase gc
-    where gc.clasa_cod = v_clasa
-    limit 1;
-  update copii set grupa_id = v_grupa, actualizat_la = now() where id = p_copil_id;
+  new.grupa_id := calculeaza_grupa_pt_clasa(new.clasa_cod);
+  return new;
 end;
 $$ language plpgsql;
+
+drop trigger if exists on_copil_clasa_change on copii;
+drop trigger if exists on_copil_insert on copii;
+drop trigger if exists on_copil_clasa_update on copii;
+drop trigger if exists on_copil_seteaza_grupa_insert on copii;
+drop trigger if exists on_copil_seteaza_grupa_update on copii;
+
+create trigger on_copil_seteaza_grupa_insert
+before insert on copii
+for each row execute function trg_copil_seteaza_grupa();
+
+create trigger on_copil_seteaza_grupa_update
+before update on copii
+for each row execute function trg_copil_seteaza_grupa();
 
 -- Recalculeaza grupele pentru TOTI copiii (folosit dupa schimbare configuratie grupe)
 create or replace function recalculeaza_toate_grupele()
 returns void as $$
 begin
-  update copii c set
-    grupa_id = (select gc.grupa_id from grupe_clase gc where gc.clasa_cod = c.clasa_cod limit 1),
-    actualizat_la = now();
+  update copii c
+  set grupa_id = calculeaza_grupa_pt_clasa(c.clasa_cod),
+      actualizat_la = now()
+  where true;
 end;
 $$ language plpgsql;
 
--- Trigger: cand se modifica grupe_clase (asignarea claselor la grupe), recalculeaza tot
+-- Trigger pe GRUPE_CLASE: cand admin schimba ce clase apartin unei grupe,
+-- TOTI copiii preiau grupa recalculata.
 create or replace function trg_grupe_clase_changed()
 returns trigger as $$
 begin
@@ -236,29 +259,6 @@ drop trigger if exists on_grupe_clase_change on grupe_clase;
 create trigger on_grupe_clase_change
 after insert or update or delete on grupe_clase
 for each statement execute function trg_grupe_clase_changed();
-
--- Trigger: cand se insereaza/schimba clasa unui copil, ii calculam grupa
-create or replace function trg_copil_clasa_changed()
-returns trigger as $$
-begin
-  new.grupa_id := (select gc.grupa_id from grupe_clase gc where gc.clasa_cod = new.clasa_cod limit 1);
-  return new;
-end;
-$$ language plpgsql;
-
--- Doua triggere separate: unul pt orice INSERT (necondiționat), unul pt
--- UPDATE doar cand se schimba efectiv clasa. "of clasa_cod" pe INSERT e
--- ambiguu pt PostgREST/Supabase si poate sa nu se declanseze fiabil.
-drop trigger if exists on_copil_clasa_change on copii;
-drop trigger if exists on_copil_insert on copii;
-create trigger on_copil_insert
-before insert on copii
-for each row execute function trg_copil_clasa_changed();
-
-drop trigger if exists on_copil_clasa_update on copii;
-create trigger on_copil_clasa_update
-before update of clasa_cod on copii
-for each row execute function trg_copil_clasa_changed();
 
 -- ----------------------------------------------------------------------------
 -- 10. FUNCTIE: incrementeaza / decrementeaza clasa tuturor copiilor (an scolar nou)
@@ -289,6 +289,8 @@ begin
   where c.clasa_cod = tinta.cod_vechi;
   -- copiii care ar iesi din interval (sub prima clasa sau peste Absolvent)
   -- raman neschimbati - nu exista rand "tinta" pt ei in JOIN.
+  -- Trigger-ul on_copil_seteaza_grupa_update de mai sus recalculeaza deja
+  -- grupa_id automat pt fiecare copil actualizat de update-ul de mai sus.
 
   update setari_an_scolar set an_scolar = p_an_nou where id = 1;
   perform recalculeaza_toate_grupele();

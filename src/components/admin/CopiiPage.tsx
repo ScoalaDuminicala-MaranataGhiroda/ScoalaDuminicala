@@ -174,8 +174,8 @@ export default function CopiiPage() {
         <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff', borderRadius: 12, overflow: 'hidden' }}>
           <thead>
             <tr style={{ background: '#f3f4f6', textAlign: 'left' }}>
-              {['Nume', 'Clasă', 'Grupă', 'Vârstă', 'Adeverință', ''].map((h) => (
-                <th key={h} style={{ padding: '10px 12px', fontSize: 13, color: '#4b5563', fontWeight: 500 }}>{h}</th>
+              {['Nume', 'Clasă', 'Grupă', 'Vârstă', 'Data nașterii', 'Școală', 'Adresă', 'Adeverință', ''].map((h) => (
+                <th key={h} style={{ padding: '10px 12px', fontSize: 13, color: '#4b5563', fontWeight: 500, whiteSpace: 'nowrap' }}>{h}</th>
               ))}
             </tr>
           </thead>
@@ -184,13 +184,16 @@ export default function CopiiPage() {
               const grupa = grupaDupaId(c.grupa_id);
               return (
                 <tr key={c.id} style={{ borderTop: '1px solid #e5e7eb' }}>
-                  <td style={{ padding: '10px 12px', fontSize: 14 }}>{c.nume_prenume}</td>
-                  <td style={{ padding: '10px 12px', fontSize: 14 }}>{numeClasa(c.clasa_cod)}</td>
+                  <td style={{ padding: '10px 12px', fontSize: 14, whiteSpace: 'nowrap' }}>{c.nume_prenume}</td>
+                  <td style={{ padding: '10px 12px', fontSize: 14, whiteSpace: 'nowrap' }}>{numeClasa(c.clasa_cod)}</td>
                   <td style={{ padding: '10px 12px' }}>
                     {grupa ? <Badge texte={grupa.nume} culoareFundal={grupa.culoare_hex} culoareText="#fff" /> : <span style={{ color: '#9ca3af', fontSize: 13 }}>-</span>}
                   </td>
                   <td style={{ padding: '10px 12px', fontSize: 14 }}>{calculeazaVarsta(c.data_nasterii) ?? '-'}</td>
-                  <td style={{ padding: '10px 12px', fontSize: 14 }}>{c.are_nevoie_adeverinta ? 'Da' : 'Nu'}</td>
+                  <td style={{ padding: '10px 12px', fontSize: 14, whiteSpace: 'nowrap' }}>{c.data_nasterii ? formateazaData(c.data_nasterii) : '-'}</td>
+                  <td style={{ padding: '10px 12px', fontSize: 14 }}>{c.scoala || '-'}</td>
+                  <td style={{ padding: '10px 12px', fontSize: 14, maxWidth: 220 }}>{c.adresa || '-'}</td>
+                  <td style={{ padding: '10px 12px', fontSize: 14, whiteSpace: 'nowrap' }}>{c.are_nevoie_adeverinta ? 'Da' : 'Nu'}</td>
                   <td style={{ padding: '10px 12px', textAlign: 'right', whiteSpace: 'nowrap' }}>
                     <Buton variant="text" onClick={() => deschideEditare(c)}>Editează</Buton>
                     <Buton variant="text" onClick={() => setDeSters(c)} style={{ color: '#dc2626' }}>Șterge</Buton>
@@ -200,7 +203,7 @@ export default function CopiiPage() {
             })}
             {copiiFiltrati.length === 0 && (
               <tr>
-                <td colSpan={6} style={{ padding: 20, textAlign: 'center', color: '#9ca3af', fontSize: 14 }}>
+                <td colSpan={9} style={{ padding: 20, textAlign: 'center', color: '#9ca3af', fontSize: 14 }}>
                   Niciun copil nu corespunde filtrelor.
                 </td>
               </tr>

@@ -56,7 +56,14 @@ export function useGrupe() {
     if (error || !data) throw new Error(error?.message ?? 'Eroare la creare grupă');
 
     if (input.clase.length > 0) {
-      await supabase.from('grupe_clase').insert(input.clase.map((cod) => ({ grupa_id: data.id, clasa_cod: cod })));
+      const { error: eroareClase } = await supabase
+        .from('grupe_clase')
+        .insert(input.clase.map((cod) => ({ grupa_id: data.id, clasa_cod: cod })));
+      // IMPORTANT: fara aceasta verificare, un esec aici (RLS, constrangere,
+      // cod de clasa inexistent) trecea neobservat - grupa parea creata cu
+      // succes in UI, dar clasele ei nu se salvau niciodata, deci niciun
+      // copil din acele clase nu putea fi arondat automat.
+      if (eroareClase) throw new Error(`Grupa a fost creată, dar clasele nu s-au putut salva: ${eroareClase.message}`);
     }
     await incarca();
   }
@@ -71,9 +78,14 @@ export function useGrupe() {
       .eq('id', id);
     if (error) throw new Error(error.message);
 
-    await supabase.from('grupe_clase').delete().eq('grupa_id', id);
+    const { error: eroareStergere } = await supabase.from('grupe_clase').delete().eq('grupa_id', id);
+    if (eroareStergere) throw new Error(`Eroare la actualizarea claselor grupei: ${eroareStergere.message}`);
+
     if (input.clase.length > 0) {
-      await supabase.from('grupe_clase').insert(input.clase.map((cod) => ({ grupa_id: id, clasa_cod: cod })));
+      const { error: eroareClase } = await supabase
+        .from('grupe_clase')
+        .insert(input.clase.map((cod) => ({ grupa_id: id, clasa_cod: cod })));
+      if (eroareClase) throw new Error(`Clasele grupei nu s-au putut salva: ${eroareClase.message}`);
     }
     await incarca();
   }
